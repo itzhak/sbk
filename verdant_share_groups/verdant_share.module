@@ -1,0 +1,210 @@
+<?php
+// $Id: $
+
+/********** The rideshare view *****************************************/
+
+
+// Oy.  Lots of errors in a randomish way when this module loaded before
+// 	that one.  Do we need to do this here, or in .install ?
+module_load_include('inc', 'node', 'node.pages');
+module_load_include('inc', 'verdant_share', 'verdant_share_flags'); 
+
+
+function verdant_share_enable() {
+	// not sure why content creation didn't work in install.  It worked recopied
+	// 	into enable.  That seems hackish but error-free, yes/no?
+
+	if ( ! variable_get('verdant_share_fully_installed', null) ) {
+		/* install rideshare cck */
+		$filename = drupal_get_path('module','verdant_share') . "/verdant_ride_cck.inc";
+
+		$content_type = file_get_contents($filename);
+
+		// Build form state
+		$form_state = array(
+			'values' => array(
+				'type_name' => '<create>',
+				'macro' => $content_type,
+			),
+		);
+		// content_copy is a module for importing & exporting CCK types
+		drupal_execute("content_copy_import_form", $form_state);
+		//content_clear_type_cache();
+		drupal_set_message(t("Attempted to create the cck type 'Share the Ride' while enabling Verdant Share module."));
+		
+		/* install event cck */
+        $filename = drupal_get_path('module','verdant_share') . "/ride_cck_event.inc";
+
+        $content_type = file_get_contents($filename);
+
+        // Build form state
+        $form_state = array(
+            'values' => array(
+                'type_name' => '<create>',
+                'macro' => $content_type,
+            ),
+        );
+        // content_copy is a module for importing & exporting CCK types
+        drupal_execute("content_copy_import_form", $form_state);
+        //content_clear_type_cache();
+        drupal_set_message(t("Attempted to create the cck type 'Event' while enabling Verdant Share module."));
+		
+		/* install company group cck */
+        $filename = drupal_get_path('module','verdant_share') . "/ride_cck_company.inc";
+
+        $content_type = file_get_contents($filename);
+
+        // Build form state
+        $form_state = array(
+            'values' => array(
+                'type_name' => '<create>',
+                'macro' => $content_type,
+            ),
+        );
+        // content_copy is a module for importing & exporting CCK types
+        drupal_execute("content_copy_import_form", $form_state);
+        content_clear_type_cache();
+        drupal_set_message(t("Attempted to create the cck type 'Event' while enabling Verdant Share module."));
+		
+		variable_set('verdant_share_fully_installed', 1);
+	}
+}
+
+
+/**********  Most code below here focuses on the Share profile *********/
+
+// Create a Content Profile block for roomshare
+/**
+ * Implementation of hook_block()
+ */
+function verdant_share_block($op='list', $delta=0, $edit=array()) {
+  switch ($op) {
+		case 'list':
+			// why didn't using [0] work? oy.
+			$blocks[0] = array(
+				'info'       => t('Ride Share Profile via Verdant, Block'),
+				'status'     => TRUE,
+				'weight'     => 0,
+				'visibility' => 1,
+				'pages'      => 'share/rid*',  // both ride and ride/xxx
+			);
+
+			/* For published module, non-ride options removed, but keeping 
+				indexed-block style as if there was more than one block.*/
+			$blocks[1]['info'] = t('Ride Share Profile Block');
+			$blocks[1]['pages'] = "share/ride/*\nshare/ride";
+			$blocks[1]['visibility'] = 1; // show only on listed pages
+			// status and region should be set by user, but must be set.
+			// $blocks[2]['info'] = t('Flight Match Profile Block');
+			// $blocks[3]['info'] = t('Room Match Profile Block');
+
+      return $blocks;
+		case 'view':
+			switch ($delta) {
+
+			case '1': 
+				// !!! This function keeps breaking thins, content_profile_page_edit
+				//	creating hard-to-trace errors possibly at form_alter function
+				// Or, block-verdant_share-0.tpl.php  ??  I think it's fixed
+				//	with the include this module now starts with. Hopefully?
+					$type = 'share_ride';
+					global $user;
+					$account = $user;
+					$blocks['subject'] = t('My RideShare');
+					$blocks['content'] =  t('Your post will act as your search parameters:') .
+						'<div id="verdant_rideshare">' . content_profile_page_edit($type, $account) . '</div>';
+					$blocks['visibility'] = 'share/ri*';
+					$blocks['pages'] = 2;   // visibility and pages, don;t see docs, trying by hand  // !!! added late, because of spelling error, what's this do? !!!
+					//dsm($blocks);
+					return $blocks;
+
+				case '2': 
+					$type = 'share_flight';
+					global $user;
+					$account = $user;
+					$blocks['subject'] = t("My Flight & Taxi Info");
+					$blocks['content'] =  //'Entry form available soon.';
+
+						content_profile_page_edit($type, $account);
+					 return $blocks;
+			}
+  }
+}
+
+
+
+
+
+
+/******* Views: api, load it, and internal functions to fill exposed forms *******/
+
+/**
+ * Implementation of hook_views_api
+ */
+// This hook simply tells views that this module supports Views API 2
+function verdant_share_views_api() {
+		return array(
+			'api' => 2,
+			//'path' => drupal_get_path('module', 'verdant_share') . '/.'; 
+					// Don't need if the *inc files are in this directory, they are.
+		);
+}
+
+
+	// Let users play with this (is that a good idea?)
+	// $views[$view->name] = $view;
+
+
+
+// Alter the form to point back at same page.
+function verdant_share_form_alter(&$form, $form_state, $form_id) {
+
+	if ( $form_id == 'share_ride_node_form') {
+		// add some css ... might need this more often?
+		drupal_add_css(drupal_get_path('module', 'verdant_share') .'/css/verdant_share_extra_style.css');
+		// Redirect
+		//not ABSOLUTELY positive this can't be tampered with, 
+		//	$form['#redirect'] = $_GET['q']; 
+		//	so hard code to be safe
+		if ( $_GET['q'] == 'share/ride/map' ) {
+			$form['#redirect'] = 'share/ride/map';
+		} else {
+			$form['#redirect'] = 'share/ride/chart';
+		}
+		// warning: docs tell admin ok to change these URLS !!!
+
+		// Keep form super-simple	 for users
+		
+		// Can create these blocks by hand, for now.
+		$form['body_field']['body']['#rows'] = 3;
+		$form['body_field']['teaser_include']['#access'] = FALSE;
+		unset($form['body_field']['format']);
+		$form['comment_settings']['#access'] = FALSE;
+		$form['menu']['#access'] = FALSE;
+		$form['path']['#access'] = false;
+		$form['author']['#access'] = false;
+		$form['options']['#access'] = false;
+		$form['revision_information']['#access'] = false;
+		// Want to remove long, lat boxes and some text
+
+		// !!! can this go to inc file?
+		$form['locations'][0]['#collapsed'] = 0;
+
+		//dsm($form['locations'] ); 
+
+		// I hate the instructions text.
+		// thse people need a better answer: http://drupal.org/node/325820
+		// It's set as ['locpick']['instructions'][#value] using html, but not
+		//	coming through in dsm above.  Confusing.  Almost as if I get rid
+		// 	of it, and it comes back?  Dealt with in css !!!
+		// Something seems wrong with locpick
+
+		// This next one does nothing:
+		/*
+		unset( $form['locations'][0]['#location_settings']['form']['fields']['locpick'] );
+
+		unset($form['body_field']['format']['format']['guidelines']);
+		unset($form['attachments']);
+		 */
+	}
+}

@@ -1,0 +1,164 @@
+1. install drupal 6
+2. install jQuery and enable it
+  a) after you instal jQuery you will see in drupal message how to download library for jQuery, follow the instructions of the message
+     in order to complete instalation of jQuery
+3. install "jQuery update" and enable it
+4. instal cck (without enabling this module)
+5. install views (without enabling this module)
+6. install content profile (without enabling this module)
+7. install date (without enabling this module)
+not used for now {8. install flag (without enabling this module)}
+9. install location (without enabling this module)
+10. install gmap (without enabling this module)
+11. install "Install Profile API" (without enabling this module)
+12. install "Automatic Nodetitles" (without enabling this module)
+13. install "Content Taxonomy" (without enabling this module)
+14. instal "og" end enable "ogranic groups", "organic groups access control" and "organic groups views integration" 
+15. go to file modules/location/geocoding/google.inc and open it. if your country is not in list insert it 
+   (for example for israel add  /* Israel                       */ 'il',)
+16. go to file modules/location/location.admin.inc and open it. find "function theme_location_map_link_options(&$form)" and remove '&' 
+                                                                find "function theme_location_geocoding_options(&$form)" and remove '&'
+																 (this fix bug when your going to admin/settings/location/maplinking and
+																  going to admin/settings/location/geocoding, 
+																  for more information read http://drupal.org/node/733438) 
+																  
+xx) goto to file modules/taxanomy/taxanomy.module and find "$node->taxonomy = taxonomy_node_get_terms($node, 'tid', TRUE); " and comment this line
+    this fix markers taxanomy mess in gmaps views.
+																  
+17. install verdant_share and enable it (You will get "Some required modules must be enabled" message click to continue)
+
+18. go to admin/settings/gmap 
+    a) insert google maps api key
+	c) use map in order to set you default center 
+	d) set default zoom for map that wil be used for user input (I set it to 12) 
+	e) save configuration
+	
+19) go to admin/build/views/edit/verdant_module_rideshare choose map view, click on "Style: GMap" settings 
+    and at macro choose gmap zoom this zoom is for gmap shown for all users ( I choose 11)
+
+20) GMAP markers must be enabled by hand (for now).  Go to the vocubulary page (admin/content/taxonomy) and click on "edit vocabulary"
+    for "Means of Transit" and enable "GMap markers."  Then go to each term by clickin "list terms" and give them an image.  
+		
+	bus = small dark green, 
+	offer = small yellow
+	either = small organge
+	need ride = small bright red
+	@todo: Ideally, someone will great new images.
+	@note: go back to admin/settings/gmap and Regenerate marker cache, if needed
+	@note: that still didn't do it, not sure why
+	
+21) go to folder \sites\all\modules\gmap\markers and create file "events.ini" copy the content from other *.ini file 
+    and create approriate file *.png for event icon
+	
+22) go to admin/settings/performance and click "clear cached data"
+	
+23) go to admin/content/taxonomy and click on "edit vocabulary" for "Event Icons" and enable "GMap markers. Then go to term and
+    give image name and go back to admin/settings/gmap and Regenerate marker cache
+
+24) Go to admin/settings/location/ 
+  a)and click on "Use a Google Map to set latitude and longitude" and choose your country in "default country selection"
+  b) click save configuration
+  c) click on "Geocoding options" and enable geocoding for your country
+  d) click on save configuration button
+
+25) Go to permissions ( admin/user/permissions )
+   a) and set location module: submit latitude/longitude ok for authenticated users
+   b) set node module: create share_ride content, delete own share_ride content,
+	  edit own share_ride content OK for authenticated users
+   c) set user module: access user profiles for authenticated users
+   d) click on save permission button
+
+26) goto admin/content/node-type/share-ride, admin/content/node-type/company-group, admin/content/node-type/event and for each one
+    a) Click on "Number of locations" (in "Locative information" section) and set the minimum number of locations to 1.
+	b) Click "Collection settings" and in "country" choose your country (this country will choosed as default in user input) 
+	c) in "Collection settings" choose what to collect (allow) (I choose "Coordinate Chooser", "Country", "City ", "Street location", "Location name")
+	d) in "Display Settings" choose "Coordinates" to exlude from display
+	e) click on "save content type" button
+	
+27) add role "group admin" "admin/user/roles" and add admin to this role ( goto user/1/edit?destination=admin%2Fuser%2Fuser)
+    add role "admin"  and add admin to this role ( goto user/1/edit?destination=admin%2Fuser%2Fuser)
+ 
+28) go to admin/build/block
+   a) and move "Ride Share Profile Block" from disaled to "content"
+   b) and move "Group Details" from disaled to "Left sidebar" 
+   d) move "My groups" from disabled to "Left sidebar" ( enable in admin/build/modules "Organic groups Views integration" module)
+   d) Click on the "Save Blocks" 
+   e) in "Group Details" configure in Show block for specific roles choose "Groups admin" and save
+   f) in "My groups" in configure "Show block for specific roles" choose "authenticated user" and save
+   g) in "Navigation" choose configure and check in "Show block for specific roles: " admin
+   
+29) goto admin/og/og and check "Audience required:" Required
+  
+
+30) Recommended, enable user pictures at admin/user/settings
+
+31) create rideshare menu:
+   a) goto admin/build/menu/add {carpool, carpool menu)
+   b) Add four items: (My accout(move from navigation), carpool list (share/ride/chart), carpool map (share/ride/map),
+      { no need to add for now "My unread post(group)"}, logout(move from navigation)
+   c) move this menu from disabled to left bar and in configure Show block for specific roles choose "authenticated user" and save
+   
+32) go to admin/build/block and move :carpool menu" above "My groups"
+
+test if needed:
+1) goto admin/build/views/edit/verdant_module_rideshare and click on Footer and uncheck "Display even if view has no result"
+   
+internalization:
+1) install i18n, i10n_update
+2) goto to folder sites\all\modules\views\modules\taxonomy\views_handler_field_term_node_tid.inc and add to function pre_render:
+   instead of:
+   while ($term = db_fetch_object($result)) {
+   ...
+   }
+   
+   add 
+   
+   while ($term = db_fetch_object($result)) {
+	    $name = i18nstrings('taxonomy:term:'. $term->tid .':name', $term->name); // added by isay 
+		$this->items[$term->node_vid][$term->tid]['name'] = check_plain($name); // changed by isay         
+        $this->items[$term->node_vid][$term->tid]['tid'] = $term->tid;
+        $this->items[$term->node_vid][$term->tid]['vid'] = $term->vid;
+        $this->items[$term->node_vid][$term->tid]['vocabulary'] = check_plain($term->vocabulary);
+        
+        if (!empty($this->options['link_to_taxonomy'])) {
+          $this->items[$term->node_vid][$term->tid]['make_link'] = TRUE;
+          $this->items[$term->node_vid][$term->tid]['path'] = taxonomy_term_path($term);
+        }
+    }
+   
+3) goto to folder sites\all\modules\views\modules\taxonomy\views_handler_field_taxonomy.inc and add after "function render" next code 
+  // added by isay 
+  function pre_render($values) {    
+    foreach ($values as $key => $value) {
+      if (isset($value->term_data_name)) {	    
+        $t_name = i18nstrings('taxonomy:term:'. $value->term_data_tid .':name', $value->term_data_name);
+        $values[$key]->term_data_name = $t_name;		
+      }
+    }
+  }
+  
+4) goto admin/build/modules enable Internationalization, Localization update, String translation, Taxonomy translation, Content type translation, 
+                                   Menu Translation
+5) goto admin/settings/language and add language
+6) goto admin/settings/language/configure and choose Path prefix only
+7) goto admin/settings/language/i18n and check Hide content translation links
+8) goto admin/content/taxonomy/edit/vocabulary/1 and choose 
+   "Localize terms. Terms are common for all languages, but their name and description may be localized." for "Translation mode:"
+9) goto admin/content/node-type/share-ride and in "Workflow settings" choose "Multilingual support: Enabled"
+10) goto admin/content/node-type/share-ride and in "Multilanguage options" check "Set current language as default for new content."
+    and check "Lock language (Cannot be changed)."
+
+Todo: make that "group admin" can't add users as "admin og group"
+
+
+regular work:
+
+adding group: goto node/add/company-group, choose "List in group directory" if you want this group seen to everybody, 
+              or choose "Private group" you dont want this group seen by everybody, if you want to allow registering and adding to group
+			  ( For example, user/register?gids[]=4) don't choose "Private group" options
+adding users to group: goto og/my click on wanted group in left side you will see group details, click on x member and choose "add members"
+                     : send link user/register?gids[]=4 will add a checked checkbox for to the user's registration page 
+					   for subscribing to group nid=4 (only when group is not "private group")
+making user as manager of group: goto og/my click on wanted group in left side you will see group details, click on x member and choose "List"
+                                 and click on "Admin create"
+								 
